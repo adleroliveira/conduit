@@ -22,9 +22,9 @@ class Conduit {
         if (this.getTypeOf(this.steps[currentStepCopy]) === 'conduit') {
           nextStepPromise = new Promise((resolve, reject) => {
             this.steps[currentStepCopy]
-                .on('processFinish', resolve)
-                .on('error', reject)
-                .run(input)
+              .on('processFinish', resolve)
+              .on('error', reject)
+              .run(input)
           })
         } else {
           nextStepPromise = new Promise((resolve, reject) => {
