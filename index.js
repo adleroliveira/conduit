@@ -18,62 +18,45 @@ class Conduit {
     if (this.currentStep < this.steps.length) {
       let nextStepPromise
       let currentStepCopy = parseInt(0 + this.currentStep)
-      switch(this.getTypeOf(input)) {
-        case 'array':
-          let process
-          if (this.getTypeOf(this.steps[currentStepCopy]) === 'conduit') {
-            nextStepPromise = new Promise((resolve, reject) => {
-              this.steps[currentStepCopy]
-                  .on('processFinish', resolve)
-                  .on('error', reject)
-                  .run(input)
-            })
-          } else {
-            process = (input) => this.steps[currentStepCopy](input, this.setup)
-            nextStepPromise = new Promise((resolve, reject) => {
-              let queue = new jobQ({
-                process,
-                source: input,
-                maxProcesses: input.length
-              })
-              .on('start', () => {
-                this.results[currentStepCopy] = []
-              })
-              .on('jobFinish', (resultInfo) => {
-                this.results[currentStepCopy].push(resultInfo.result)
-              })
-              .on('error', (err) => {
-                console.log('Something went wrong', err)
-              })
-              .on('processFinish', (processInfo) => {
-                if (!processInfo.errors) {
-                  return resolve(this.results[currentStepCopy])
-                } else {
-                  return reject('something wrong', processInfo)
-                }
-              })
-              .start()
-            })
-          }
-          break
-        default:
+      if (this.getTypeOf(input) === 'array') {
+        if (this.getTypeOf(this.steps[currentStepCopy]) === 'conduit') {
           nextStepPromise = new Promise((resolve, reject) => {
-            try {
-              if (this.getTypeOf(this.steps[this.currentStep]) === 'conduit') {
-                this.steps[this.currentStep]
-                  .on('processFinish', resolve)
-                  .on('error', reject)
-                  .run(input)
-              } else {
-                let result = this.steps[this.currentStep](input, this.setup)
-                if (this.getTypeOf(result) === 'promise') return result.then(resolve).catch(reject)
-                return resolve(result)
-              }
-            } catch (e) {
-              return reject(e)
-            }
+            this.steps[currentStepCopy]
+                .on('processFinish', resolve)
+                .on('error', reject)
+                .run(input)
           })
-          break;
+        } else {
+          nextStepPromise = new Promise((resolve, reject) => {
+            let queue = new jobQ({
+              process: (inputFromJobQ) => this.steps[currentStepCopy](inputFromJobQ, this.setup),
+              source: input,
+              maxProcesses: input.length
+            })
+            .on('start', () => this.results[currentStepCopy] = [])
+            .on('jobFinish', (resultInfo) => this.results[currentStepCopy].push(resultInfo.result))
+            .on('error', (err) => console.log('Something went wrong'))
+            .on('processFinish', (processInfo) => processInfo.errors ? reject('ERROR', processInfo) : resolve(this.results[currentStepCopy]))
+            .start()
+          })
+        }
+      } else {
+        nextStepPromise = new Promise((resolve, reject) => {
+          try {
+            if (this.getTypeOf(this.steps[this.currentStep]) === 'conduit') {
+              this.steps[currentStepCopy]
+                .on('processFinish', resolve)
+                .on('error', reject)
+                .run(input)
+            } else {
+              let result = this.steps[this.currentStep](input, this.setup)
+              if (this.getTypeOf(result) === 'promise') return result.then(resolve).catch(reject)
+              return resolve(result)
+            }
+          } catch (e) {
+            return reject(e)
+          }
+        })
       }
       nextStepPromise.then((result) => {
         this.currentResult = result
