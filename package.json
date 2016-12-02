@@ -1,5 +1,11 @@
 {
+  "scripts": {
+    "test": "jest --coverage"
+  },
   "dependencies": {
     "jobq": "^1.0.10"
+  },
+  "devDependencies": {
+    "jest": "^17.0.3"
   }
 }
