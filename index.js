@@ -16,40 +16,27 @@ class Conduit {
 
   run(input) {
     if (this.currentStep < this.steps.length) {
+      if (['promise', 'array', 'function', 'conduit'].indexOf(this.getTypeOf(input)) === -1) input = [input]
       let nextStepPromise
-      let currentStepCopy = parseInt(0 + this.currentStep)
-      if (this.getTypeOf(input) === 'array') {
-        if (this.getTypeOf(this.steps[currentStepCopy]) === 'conduit') {
-          nextStepPromise = this.steps[currentStepCopy].run(input)
-        } else {
-          nextStepPromise = new Promise((resolve, reject) => {
-            let queue = new jobQ({
-              process: (inputFromJobQ, cb) => this.steps[currentStepCopy](inputFromJobQ, this.setup, cb),
-              source: input,
-              maxProcesses: input.length,
-              stopOnError: true
-            })
-            .on('start', () => this.results[currentStepCopy] = [])
-            .on('jobFinish', (resultInfo) => this.results[currentStepCopy].push(resultInfo.result))
-            .on('error', (err) => reject(err))
-            .on('processFinish', (processInfo) => {
-              if(!processInfo.errors) resolve(this.results[currentStepCopy])
-            })
-            .start()
-          })
-        }
+      let currentStepCopy = this.currentStep
+      if (this.getTypeOf(this.steps[currentStepCopy]) === 'conduit') {
+        nextStepPromise = this.steps[currentStepCopy].run(input)
       } else {
-        if (this.getTypeOf(this.steps[this.currentStep]) === 'conduit') {
-          nextStepPromise = this.steps[currentStepCopy].run(input)
-        } else {
-          nextStepPromise = new Promise((resolve, reject) => {
-            let result = this.steps[this.currentStep](input, this.setup, (err, result) => {
-              if (err) return reject(err)
-              resolve(result)
-            })
-            if (result !== undefined) resolve(result)
+        nextStepPromise = new Promise((resolve, reject) => {
+          let queue = new jobQ({
+            process: (inputFromJobQ, cb) => this.steps[currentStepCopy](inputFromJobQ, this.setup, cb),
+            source: new Promise((resolve) => resolve(input)),
+            maxProcesses: input.length,
+            stopOnError: true
           })
-        }
+          .on('start', () => this.results[currentStepCopy] = [])
+          .on('jobFinish', (resultInfo) => this.results[currentStepCopy].push(resultInfo.result))
+          .on('error', reject)
+          .on('processFinish', (processInfo) => {
+            if(!processInfo.errors) resolve(this.results[currentStepCopy])
+          })
+          .start()
+        })
       }
       return nextStepPromise.then((result) => {
         this.currentResult = result
