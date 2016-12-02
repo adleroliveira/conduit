@@ -19,6 +19,7 @@ node_js:
   - 4.2
   - 4.1
   - 4.0
-
+install:
+  - npm install -g codecov
 after_success:
-  - bash <(curl -s https://codecov.io/bash) -t 9e937cae-a361-4616-96d5-f8e0405103ee
+  - bash <(curl -s https://codecov.io/bash)
