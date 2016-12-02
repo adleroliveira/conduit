@@ -9,6 +9,10 @@
   "dependencies": {
     "jobq": "^1.0.10"
   },
+  "jest": {
+    "coverageDirectory": "./coverage/",
+    "collectCoverage": true
+  },
   "devDependencies": {
     "babel-jest": "^17.0.2",
     "babel-polyfill": "^6.16.0",
