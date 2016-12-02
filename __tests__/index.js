@@ -109,7 +109,7 @@ describe('input', () => {
   it('should work with non array inputs', () => {
     const conduitStep = new conduit({steps: [plus1, plus2]})
     return new conduit({steps: [conduitStep, asyncPlus2, plus3, promiseResult]})
-    .run(1).then((data) => expect(data).toBe(9))
+    .run(1).then((data) => expect(data).toEqual([9]))
   })
 })
 
