@@ -1,6 +1,6 @@
 declare module "conduit" {
   interface ConduitOptionsInterface {
-    steps?: [Conduit|Function]
+    steps?: (Conduit|(Function))[]
     setup?: any
     reducer?: Function
   }
