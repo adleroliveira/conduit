@@ -2,7 +2,7 @@ const jobQ = require('jobq')
 const STEPS_MUST_BE_FUNCTIONS = 'All provided steps must be either a function or a conduit instance'
 
 class Conduit {
-  constructor(config) {
+  constructor(config = {}) {
     this.setup = config.setup || {}
     this.steps = config.steps || []
     if (!this.validSteps()) throw new Error(STEPS_MUST_BE_FUNCTIONS)
@@ -20,71 +20,59 @@ class Conduit {
       let currentStepCopy = parseInt(0 + this.currentStep)
       if (this.getTypeOf(input) === 'array') {
         if (this.getTypeOf(this.steps[currentStepCopy]) === 'conduit') {
-          nextStepPromise = new Promise((resolve, reject) => {
-            this.steps[currentStepCopy]
-              .on('processFinish', resolve)
-              .on('error', reject)
-              .run(input)
-          })
+          nextStepPromise = this.steps[currentStepCopy].run(input)
         } else {
           nextStepPromise = new Promise((resolve, reject) => {
             let queue = new jobQ({
-              process: (inputFromJobQ) => this.steps[currentStepCopy](inputFromJobQ, this.setup),
+              process: (inputFromJobQ, cb) => this.steps[currentStepCopy](inputFromJobQ, this.setup, cb),
               source: input,
-              maxProcesses: input.length
+              maxProcesses: input.length,
+              stopOnError: true
             })
             .on('start', () => this.results[currentStepCopy] = [])
             .on('jobFinish', (resultInfo) => this.results[currentStepCopy].push(resultInfo.result))
-            .on('error', (err) => console.log('Something went wrong'))
-            .on('processFinish', (processInfo) => processInfo.errors ? reject('ERROR', processInfo) : resolve(this.results[currentStepCopy]))
+            .on('error', (err) => reject(err))
+            .on('processFinish', (processInfo) => {
+              if(!processInfo.errors) resolve(this.results[currentStepCopy])
+            })
             .start()
           })
         }
       } else {
-        nextStepPromise = new Promise((resolve, reject) => {
-          try {
-            if (this.getTypeOf(this.steps[this.currentStep]) === 'conduit') {
-              this.steps[currentStepCopy]
-                .on('processFinish', resolve)
-                .on('error', reject)
-                .run(input)
-            } else {
-              let result = this.steps[this.currentStep](input, this.setup)
-              if (this.getTypeOf(result) === 'promise') return result.then(resolve).catch(reject)
-              return resolve(result)
-            }
-          } catch (e) {
-            return reject(e)
-          }
-        })
+        if (this.getTypeOf(this.steps[this.currentStep]) === 'conduit') {
+          nextStepPromise = this.steps[currentStepCopy].run(input)
+        } else {
+          nextStepPromise = new Promise((resolve, reject) => {
+            let result = this.steps[this.currentStep](input, this.setup, (err, result) => {
+              if (err) return reject(err)
+              resolve(result)
+            })
+            if (result !== undefined) resolve(result)
+          })
+        }
       }
-      nextStepPromise.then((result) => {
+      return nextStepPromise.then((result) => {
         this.currentResult = result
         this.currentStep++
-        this.run(result)
+        return this.run(result)
       })
     } else {
-      if (this.reducer && this.getTypeOf(this.reducer) === 'function' && Array.isArray(this.currentResult)) {
-        let finalResult = this.reducer(this.currentResult)
-        if (this.getTypeOf(finalResult) === 'promise') {
-          finalResult.then((result) => this.emit('processFinish', result))
+      return new Promise((resolve, reject) => {
+        if (this.reducer && this.getTypeOf(this.reducer) === 'function' && Array.isArray(this.currentResult)) {
+          let finalResult = this.reducer(this.currentResult, (err, finalResult) => {
+            if (err) return reject(err)
+            resolve(finalResult)
+          })
+          if (this.getTypeOf(finalResult) === 'promise') {
+            finalResult.then(resolve)
+          } else if (finalResult !== undefined) {
+            resolve(finalResult)
+          }
         } else {
-          this.emit('processFinish', finalResult)
+          resolve(this.currentResult)
         }
-      } else {
-        this.emit('processFinish', this.currentResult)
-      }
+      })
     }
-    return this
-  }
-
-  on(event, handler) {
-    this.events[event] = handler
-    return this
-  }
-
-  emit(event, payload) {
-    if (this.events[event]) this.events[event](payload)
   }
 
   validSteps() {

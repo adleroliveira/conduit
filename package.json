@@ -1,5 +1,15 @@
 {
+  "name": "conduit",
+  "version": "1.0.0",
+  "description": "A small library to perform data transformation through a function pipeline with spread and reduct capabilities",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest --coverage"
+  },
   "dependencies": {
     "jobq": "^1.0.10"
+  },
+  "devDependencies": {
+    "jest": "^17.0.3"
   }
 }
